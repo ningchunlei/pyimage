@@ -3,6 +3,7 @@ import numpy
 import scipy
 from scipy import ndimage
 from img import ImgPath,ImgPoint
+import copy
 
 imgOrgin = cv2.imread('d:/a.jpg',cv2.IMREAD_GRAYSCALE)
 row,column = imgOrgin.shape
@@ -222,6 +223,18 @@ exit()
 def horizontalPath(path):
     pathMean = -1
     rowMean = -1
+    dx,dy = dmap[td[path.startX][path.startY]]
+    path=copy.copy(path)
+    if abs(td[path.startX+dx][path.startY+dy]) != 3 and abs(td[path.startX+dx][path.startY+dy])>0:
+        path.startX = path.startX+dx
+        path.startY = path.startY + dy
+        path.length += 1
+    dx,dy = dmap[td[path.endX][path.endY]]
+    if abs(td[path.endX+dx][path.endY+dy]) != 3 and abs(td[path.startX+dx][path.startY+dy])>0:
+        path.endX = path.endX+dx
+        path.endY = path.endY + dy
+        path.length += 1
+
     def __hpath(counter,step):
         pathMean = -1
         while True:
@@ -265,6 +278,19 @@ def horizontalPath(path):
 def verticalPath(path):
     pathMean = -1
     rowMean = -1
+
+    dx,dy = dmap[td[path.startX][path.startY]]
+    path=copy.copy(path)
+    if abs(td[path.startX+dx][path.startY+dy]) != 1 and abs(td[path.startX+dx][path.startY+dy])>0:
+        path.startX = path.startX+dx
+        path.startY = path.startY + dy
+        path.length += 1
+    dx,dy = dmap[td[path.endX][path.endY]]
+    if abs(td[path.endX+dx][path.endY+dy]) != 1 and abs(td[path.startX+dx][path.startY+dy])>0:
+        path.endX = path.endX+dx
+        path.endY = path.endY + dy
+        path.length += 1
+
     def vp(counter,step):
         pathMean = -1
         while True:
@@ -317,6 +343,15 @@ def verticalPath(path):
 def downRightPath(path,dr):
     pathMean = -1
     rowMean = -1
+
+
+    path=copy.copy(path)
+    dx,dy = dmap[td[path.endX][path.endY]]
+    if abs(td[path.endX+dx][path.endY+dy]) != 2 and abs(td[path.startX+dx][path.startY+dy])>0:
+        path.endX = path.endX+dx
+        path.endY = path.endY + dy
+        path.length += 1
+
     def __axis(path,counter,j):
         t_y=0;t_x=0
         if dr == 4 :
@@ -386,6 +421,14 @@ def downRightPath(path,dr):
 def upRightPath(path,dr):
     pathMean = -1
     rowMean = -1
+
+    dx,dy = dmap[td[path.startX][path.startY]]
+    path=copy.copy(path)
+    if abs(td[path.startX+dx][path.startY+dy]) != 4 and abs(td[path.startX+dx][path.startY+dy])>0:
+        path.startX = path.startX+dx
+        path.startY = path.startY + dy
+        path.length += 1
+
     def __axis(path,counter,j):
         t_y=0;t_x=0
         if dr == 2 :
