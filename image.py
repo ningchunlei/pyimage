@@ -1,14 +1,10 @@
 import cv2
-from types import NoneType
 import numpy
 import scipy
 from scipy import ndimage
+from img import ImgPath,ImgPoint
 
 imgOrgin = cv2.imread('d:/a.jpg',cv2.IMREAD_GRAYSCALE)
-
-#clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(20,20))
-#imgOrgin = clahe.apply(imgOrgin)
-
 row,column = imgOrgin.shape
 
 copyOrgin = numpy.zeros(imgOrgin.shape,"int32")
@@ -47,16 +43,15 @@ else :
     pixel_mask = imgOrgin < pixel_mean
 
 
-mask = ~(pixel_mask)
-
+mask = ~(pixel_mask & grad_mask)
 img = numpy.ma.array(imgOrgin,mask=mask,fill_value=0).filled()
-
 img.dtype=numpy.uint8
 
-startX=15
-startY=297
-endX = 45
-endY = 322
+mask = ~pixel_mask
+extendImg = numpy.ma.array(imgOrgin,mask=mask,fill_value=0).filled()
+extendImg.dtype=numpy.uint8
+
+
 
 fillImg = numpy.insert(img,0,0,axis=0)
 fillImg = numpy.insert(fillImg,0,0,axis=1)
@@ -64,7 +59,10 @@ fillImg = numpy.insert(fillImg,fillImg.shape[1],0,axis=1)
 fillImg = numpy.insert(fillImg,fillImg.shape[0],0,axis=0)
 
 
-
+extendImg = numpy.insert(extendImg,0,0,axis=0)
+extendImg = numpy.insert(extendImg,0,0,axis=1)
+extendImg = numpy.insert(extendImg,extendImg.shape[1],0,axis=1)
+extendImg = numpy.insert(extendImg,extendImg.shape[0],0,axis=0)
 
 r0 = -numpy.pi/8
 r1 = -numpy.pi*3/8
@@ -127,6 +125,10 @@ dmap = {
 td = numpy.ndarray(fillImg.shape,"int8")
 td.fill(0)
 
+startX=1
+startY=1
+endX = row+1
+endY = column+1
 
 for x in range(startX,endX,1):
     for y in range(startY,endY,1):
@@ -140,7 +142,7 @@ for x in range(startX,endX,1):
         tmp = fillImg[x][y]
         fillImg[x][y]=0
         tdtmp = td[x][y]
-        #td[x][y]=0
+        td[x][y]=0
         for index in dmap:
             dx,dy = dmap[index]
             if fillImg[x+dx,y+dy]==0:
@@ -151,116 +153,373 @@ for x in range(startX,endX,1):
                 td[x][y]=tdtmp
                 break
 
+graph = numpy.ndarray(fillImg.shape,"object")
+polyGraph = numpy.ndarray(fillImg.shape,"object")
+
+def fillGraph(x,y,dx,dy,flag_op,dx_op=0,dy_op=0):
+    point = graph[x][y]
+    if point == None :
+        path = ImgPath(x,y,index)
+        point = ImgPoint(x,y,index,td[x+dx][y+dy]==0)
+        point.path = path
+        graph[x][y] = point
+    else:
+        ImgPoint.setPoint(point,x,y,index,td[x+dx][y+dy]==0)
+        ImgPath.setXY(point.path,x,y)
+    nextpoint = None
+    if flag_op == True :
+        dx = dx_op
+        dy = dy_op
+
+    tmpPolyGraph = polyGraph[x,y]
+    if tmpPolyGraph == None :
+        tmpPolyGraph = set()
+        polyGraph[x,y]=tmpPolyGraph
+    tmpPolyGraph.add(point.path.direction)
+
+    nextpoint = graph[x+dx][y+dy]
+    if nextpoint == None:
+        nextpoint = ImgPoint(x+dx,y+dy,td[x+dx][y+dy])
+        nextpoint.path = point.path
+        graph[x+dx][y+dy]=nextpoint
+
+
+startX=1
+startY=1
+endX = 77
+endY = column+1
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        index = td[x][y]
+        if index == 0 :
+            continue
+        dx,dy = dmap[index]
+        dx_op,dy_op = dmap[-index]
+        if x ==15 :
+            print 1
+        if td[x+dx][y+dy] == index or td[x+dx][y+dy] == -index:
+            fillGraph(x,y,dx,dy,False)
+        if td[x+dx_op][y+dy_op] == index or td[x+dx_op][y+dy_op] == -index:
+            fillGraph(x,y,dx,dy,True,dx_op,dy_op)
+
+
+print "fillGraph"
+
+"""
+t1={}
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        if graph[x,y] != None:
+            pt = graph[x,y].path
+            t1[pt] = pt
+rt = sorted(t1.keys(),key=lambda x:x.startX)
+for v in rt:
+    print str(v)
+
+exit()
+"""
+
+def horizontalPath(path):
+    pathMean = -1
+    rowMean = -1
+    def __hpath(counter,step):
+        pathMean = -1
+        while True:
+            weight = 0
+            rowMean = -1
+            tmpIndex = {}
+            for j in xrange(path.length):
+                t_x = path.startX+counter
+                t_y = path.startY+j
+                tmpIndex[(t_x,t_y)] = (t_x,t_y)
+                if extendImg[t_x][t_y] == 0 :
+                    weight = path.length<<2
+                    break
+                pt = graph[t_x][t_y]
+                if pt != None and pt.path.direction!=path.direction:
+                    if pt.path.length>4:
+                        weight = path.length << 2
+                    else :
+                        weight +=1
+                if td[t_x][t_y] ==0 :
+                    if rowMean == -1 : rowMean = numpy.mean(extendImg[t_x][path.startY:path.startY+path.length])
+                    if pathMean == -1:  pathMean = numpy.mean(extendImg[path.startX][path.startY:path.startY+path.length])
+                    if abs(rowMean-pathMean) > pathMean*0.05:
+                        weight +=1
+            if weight> path.length/3 :
+                return
+            if abs(counter)>path.length:
+                return
+            counter = counter + step
+            for tx,ty in tmpIndex:
+                tmpPolyGraph = polyGraph[tx,ty]
+                if tmpPolyGraph == None :
+                    tmpPolyGraph = set()
+                    polyGraph[tx,ty]=tmpPolyGraph
+                tmpPolyGraph.add(3)
+
+    __hpath(-1,-1)
+    __hpath(1,1)
+    return
+
+def verticalPath(path):
+    pathMean = -1
+    rowMean = -1
+    def vp(counter,step):
+        pathMean = -1
+        while True:
+            weight = 0
+            rowMean = -1
+            tmpIndex = {}
+            for j in xrange(path.length):
+                t_y = path.startY+counter
+                t_x = path.startX+j
+                tmpIndex[(t_x,t_y)] = (t_x,t_y)
+                if extendImg[t_x][t_y] == 0 :
+                    weight = path.length<<2
+                    break
+                pt = graph[t_x][t_y]
+                if pt != None and pt.path.direction!=path.direction:
+                    if pt.path.length>4:
+                        weight = path.length << 2
+                    else :
+                        weight +=1
+                if td[t_x][t_y] ==0 :
+                    if rowMean == -1 :
+                        tmpAll = 0
+                        for k in xrange(path.length):
+                            tmpAll += extendImg[path.startX+k][t_y]
+                        rowMean = tmpAll/path.length
+                    if pathMean == -1:
+                        tmpAll = 0
+                        for k in xrange(path.length):
+                            tmpAll += extendImg[path.startX+k][path.startY]
+                        pathMean = tmpAll/path.length
+                    if abs(rowMean-pathMean) > pathMean*0.05:
+                        weight +=1
+            if weight> path.length/3 :
+                return
+            if abs(counter)>path.length:
+                return
+            counter = counter + step
+            for tx,ty in tmpIndex:
+                tmpPolyGraph = polyGraph[tx,ty]
+                if tmpPolyGraph == None :
+                    tmpPolyGraph = set()
+                    polyGraph[tx,ty]=tmpPolyGraph
+                tmpPolyGraph.add(1)
+
+    vp(-1,-1)
+    vp(1,1)
+    return
+
+
+def downRightPath(path,dr):
+    pathMean = -1
+    rowMean = -1
+    def __axis(path,counter,j):
+        t_y=0;t_x=0
+        if dr == 4 :
+            t_x = path.startX-counter+j
+            t_y = path.startY+counter+j
+        if dr == 3 :
+            t_x = path.startX+j
+            t_y = path.startY+counter+j
+        if dr == 1 :
+            t_x = path.startX+counter+j
+            t_y = path.startY+j
+        if t_x < 0 :t_x = 0
+        if t_x > extendImg.shape[0]-1 : t_x = 0
+        if t_y <0 : t_y = 0
+        if t_y > extendImg.shape[1]-1 : t_y = 0
+        return t_x,t_y
+
+    def __hpath(counter,step):
+        pathMean = -1
+        while True:
+            weight = 0
+            rowMean = -1
+            tmpIndex = {}
+            for j in xrange(path.length):
+                t_x ,t_y = __axis(path,counter,j)
+                tmpIndex[(t_x,t_y)]  = (t_x,t_y)
+                if extendImg[t_x][t_y] == 0 :
+                    weight = path.length<<2
+                    break
+                pt = graph[t_x][t_y]
+                if pt != None and pt.path.direction!=path.direction:
+                    if pt.path.length>4:
+                        weight = path.length << 2
+                    else :
+                        weight +=1
+                if td[t_x][t_y] ==0 :
+                    if rowMean == -1 :
+                        tmpAll = 0
+                        for k in xrange(path.length):
+                            _x,_y = __axis(path,counter,k)
+                            tmpAll += extendImg[_x][_y]
+                        rowMean = tmpAll/path.length
+                    if pathMean == -1:
+                        tmpAll = 0
+                        for k in xrange(path.length):
+                            print path.startX,path.startX+k,path.startY,path.startY+k,path.length
+                            tmpAll += extendImg[path.startX+k][path.startY+k]
+                        pathMean = tmpAll/path.length
+                    if abs(rowMean-pathMean) > pathMean*0.05:
+                        weight +=1
+            if weight> path.length/3 :
+                return
+            if abs(counter)>path.length:
+                return
+
+            counter = counter + step
+            for tx,ty in tmpIndex:
+                tmpPolyGraph = polyGraph[tx,ty]
+                if tmpPolyGraph == None :
+                    tmpPolyGraph = set()
+                    polyGraph[tx,ty]=tmpPolyGraph
+                tmpPolyGraph.add(2)
+    __hpath(-1,-1)
+    __hpath(1,1)
+    return
+
+def upRightPath(path,dr):
+    pathMean = -1
+    rowMean = -1
+    def __axis(path,counter,j):
+        t_y=0;t_x=0
+        if dr == 2 :
+            t_x = path.startX+counter+j
+            t_y = path.startY+counter-j
+        if dr == 3 :
+            t_x = path.startX+j
+            t_y = path.startY+counter-j
+        if dr == 1 :
+            t_x = path.startX+counter+j
+            t_y = path.startY-j
+        if t_x < 0 :t_x = 0
+        if t_x > extendImg.shape[0] : t_x = 0
+        if t_y <0 : t_y = 0
+        if t_y > extendImg.shape[1] : t_y = 0
+        return t_x,t_y
+
+    def __hpath(counter,step):
+        pathMean = -1
+        while True:
+            weight = 0
+            rowMean = -1
+            tmpIndex = {}
+            for j in xrange(path.length):
+                t_x ,t_y = __axis(path,counter,j)
+                tmpIndex[(t_x,t_y)]  = (t_x,t_y)
+                if extendImg[t_x][t_y] == 0 :
+                    weight = path.length<<2
+                    break
+                pt = graph[t_x][t_y]
+                if pt != None and pt.path.direction!=path.direction:
+                    if pt.path.length>4:
+                        weight = path.length << 2
+                    else :
+                        weight +=1
+                if td[t_x][t_y] ==0 :
+                    if rowMean == -1 :
+                        tmpAll = 0
+                        for k in xrange(path.length):
+                            _x,_y = __axis(path,counter,k)
+                            tmpAll += extendImg[_x][_y]
+                        rowMean = tmpAll/path.length
+                    if pathMean == -1:
+                        tmpAll = 0
+                        for k in xrange(path.length):
+                            tmpAll += extendImg[path.startX+k][path.startY+k]
+                        pathMean = tmpAll/path.length
+                    if abs(rowMean-pathMean) > pathMean*0.05:
+                        weight +=1
+            if weight> path.length/3 :
+                return
+            if abs(counter)>path.length:
+                return
+            counter = counter + step
+            for tx,ty in tmpIndex:
+                tmpPolyGraph = polyGraph[tx,ty]
+                if tmpPolyGraph == None :
+                    tmpPolyGraph = set()
+                    polyGraph[tx,ty]=tmpPolyGraph
+                tmpPolyGraph.add(4)
+    __hpath(-1,-1)
+    __hpath(1,1)
+    return
+
+
+
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        point = graph[x][y]
+        if point == None:
+            continue
+        path = point.path
+        if path == None:
+            continue
+        if x == 15 :
+            print x
+        if path.direction == 3 :
+            horizontalPath(path)
+        elif path.direction == 1:
+            verticalPath(path)
+        elif path.direction == 2:
+            downRightPath(path,1)
+            downRightPath(path,3)
+            downRightPath(path,4)
+        elif path.direction == 4 :
+            upRightPath(path,1)
+            upRightPath(path,3)
+            upRightPath(path,2)
+
+
+
+keepGraph = numpy.ndarray(fillImg.shape,"uint8")
+keepGraph.fill(0)
+
+def find5by5Gird(x,y):
+    sx = x - 2;sy = y - 2;ex = x +2;ey=y+2
+    if sx<0 : sx = 0
+    if sy<0 : sy = 0
+    if ex > extendImg.shape[0]-1 : ex = extendImg.shape[0]-1
+    if ey > extendImg.shape[1]-1 : ey = extendImg.shape[1]-1
+    for tx in range(sx,ex):
+        for ty in range(sy,ey):
+            if polyGraph[tx][ty]!=None :
+                 return True
+    return False
+
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        if x == 15 and extendImg[x][y]==118:
+            print x,y
+        if polyGraph[x][y]==None  :
+            pass
+            #if find5by5Gird(x,y) == True : keepGraph[x][y] = extendImg[x][y]
+        else:
+            keepGraph[x][y] = extendImg[x][y]
 
 
 
 
-cv2.imshow('image',fillImg)
+cv2.imshow('image',keepGraph)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
 
-
-
-
 fd = open("d:/img_12.txt","w")
-for x in imgOrgin[startX-1:endX-1]:
-    out = numpy.array_str(x[startY-1:endY-1],max_line_width=2000)
-    fd.write(out+"\n")
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        fd.write("%3d\t" % (keepGraph[x][y]))
+    fd.write("\n")
 fd.close()
 
-fd = open("d:/img_1x.txt","w")
-for x in grad_x[startX-1:endX-1]:
-    out = numpy.array_str(x[startY-1:endY-1],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-fd = open("d:/img_1y.txt","w")
-for x in grad_y[startX-1:endX-1]:
-    out = numpy.array_str(x[startY-1:endY-1],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-fd = open("d:/img_1mag.txt","w")
-for x in grad_mag[startX-1:endX-1]:
-    out = numpy.array_str(x[startY-1:endY-1],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-fd = open("d:/img_1ang.txt","w")
-for x in grad_angle[startX-1:endX-1]:
-    out = numpy.array_str(x[startY-1:endY-1],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
 
 fd = open("d:/img_td.txt","w")
-for x in td[startX-1:endX-1]:
-    out = numpy.array_str(x[startY-1:endY-1],max_line_width=2000)
-    fd.write(out+"\n")
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        fd.write("%3d\t" % (td[x][y]))
+    fd.write("\n")
 fd.close()
-
-
-
-
-
-"""
-fd = open("d:/img_a.txt","w")
-for x in td[startX:endX]:
-    out = numpy.array_str(x[startY:endY],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-"""
-
-
-"""
-fd = open("d:/img1.txt","w")
-for x in imgOrgin:
-    out = numpy.array_str(x[0:200],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-
-fd = open("d:/img2.txt","w")
-for x in grad_mag:
-    out = numpy.array_str(x[0:200],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-fd = open("d:/img3.txt","w")
-for x in grad_angle:
-    out = numpy.array_str(x[0:200],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-fd = open("d:/imgx.txt","w")
-for x in grad_x:
-    out = numpy.array_str(x[0:200],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-
-fd = open("d:/imgy.txt","w")
-for x in grad_y:
-    out = numpy.array_str(x[0:200],max_line_width=2000)
-    fd.write(out+"\n")
-fd.close()
-
-"""
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
