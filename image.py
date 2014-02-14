@@ -510,12 +510,12 @@ for x in range(startX,endX):
         elif path.direction == 1:
             verticalPath(path)
         elif path.direction == 2:
-            downRightPath(path,1)
-            downRightPath(path,3)
+            #downRightPath(path,1)
+            #downRightPath(path,3)
             downRightPath(path,4)
         elif path.direction == 4 :
-            upRightPath(path,1)
-            upRightPath(path,3)
+            #upRightPath(path,1)
+            #upRightPath(path,3)
             upRightPath(path,2)
 
 
