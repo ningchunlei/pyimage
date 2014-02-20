@@ -14,6 +14,7 @@ class ImgPath(object):
         self.points={}
         self.points[(x,y)]=(x,y)
         self.length = len(self.points)
+        self.width = 0
 
     def setXY(self,x,y):
         if self.direction == 3 :
@@ -36,6 +37,20 @@ class ImgPath(object):
     def __str__(self):
         return "startX=%d,startY=%d,endX=%d,endY=%d,length=%d,direction=%d" % (self.startX,self.startY,self.endX,self.endY,self.length,self.direction)
 
+class ImgSet(object):
+
+    def __init__(self,index,dr):
+        self.index = index
+        self.direction = dr
+        self.points = []
+
+    def addPoint(self,x,y):
+        self.points.append((x,y))
+
+    def replaceImgSet(self,replace,polyGraph,dr):
+        for x,y in replace.points:
+            polyGraph[x][y].put(dr,self)
+            self.addPoint(x,y)
 
 class ImgPoint(object):
 
