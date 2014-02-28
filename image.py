@@ -265,12 +265,12 @@ def horizontalPath(path):
 
     dx,dy = dmap[td[path.startX][path.startY]]
     path=copy.copy(path)
-    if abs(td[path.startX+dx][path.startY+dy]) != 3 and abs(td[path.startX+dx][path.startY+dy])>0:
+    if abs(td[path.startX+dx][path.startY+dy]) != 3 and abs(td[path.startX+dx][path.startY+dy])>0 and path.length<3:
         path.startX = path.startX+dx
         path.startY = path.startY + dy
         path.length += 1
     dx,dy = dmap[td[path.endX][path.endY]]
-    if abs(td[path.endX+dx][path.endY+dy]) != 3 and abs(td[path.startX+dx][path.startY+dy])>0:
+    if abs(td[path.endX+dx][path.endY+dy]) != 3 and abs(td[path.startX+dx][path.startY+dy])>0 and path.length<3:
         path.endX = path.endX+dx
         path.endY = path.endY + dy
         path.length += 1
@@ -303,8 +303,11 @@ def horizontalPath(path):
                     tmpPolyGraph = {}
                     polyGraph[tx,ty]=tmpPolyGraph
                     tmpPolyGraph[3] = imgset
+                    imgset.addPoint(tx,ty)
                 elif imgset.index != tmpPolyGraph[3].index:
                     imgset.replaceImgSet(tmpPolyGraph[3],polyGraph,3)
+                else:
+                    imgset.addPoint(tx,ty)
 
             for j in xrange(path.length):
                 t_x = path.startX+counter
@@ -342,12 +345,12 @@ def verticalPath(path):
 
     dx,dy = dmap[td[path.startX][path.startY]]
     path=copy.copy(path)
-    if abs(td[path.startX+dx][path.startY+dy]) != 1 and abs(td[path.startX+dx][path.startY+dy])>0:
+    if abs(td[path.startX+dx][path.startY+dy]) != 1 and abs(td[path.startX+dx][path.startY+dy])>0 and path.length < 3:
         path.startX = path.startX+dx
         path.startY = path.startY + dy
         path.length += 1
     dx,dy = dmap[td[path.endX][path.endY]]
-    if abs(td[path.endX+dx][path.endY+dy]) != 1 and abs(td[path.startX+dx][path.startY+dy])>0:
+    if abs(td[path.endX+dx][path.endY+dy]) != 1 and abs(td[path.startX+dx][path.startY+dy])>0 and path.length<3:
         path.endX = path.endX+dx
         path.endY = path.endY + dy
         path.length += 1
@@ -409,8 +412,11 @@ def verticalPath(path):
                 tmpPolyGraph = {}
                 polyGraph[tx,ty]=tmpPolyGraph
                 tmpPolyGraph[1] = imgset
+                imgset.addPoint(tx,ty)
             elif imgset.index != tmpPolyGraph[1].index:
                 imgset.replaceImgSet(tmpPolyGraph[1],polyGraph,1)
+            else:
+                imgset.addPoint(tx,ty)
             path.width += abs(counter)
 
     vp(0,-1,imgset)
@@ -422,11 +428,10 @@ def downRightPath(path,dr):
     pathMean = -1
     rowMean = -1
 
-
     path=copy.copy(path)
     dx,dy = dmap[td[path.endX][path.endY]]
-    if abs(td[path.endX+dx][path.endY+dy]) != 2 and abs(td[path.startX+dx][path.startY+dy])>0:
-        path.endX = path.endX+dx
+    if abs(td[path.endX+dx][path.endY+dy]) != 2 and abs(td[path.startX+dx][path.startY+dy])>0 and path.length<3:
+        path.endX = path.endX + dx
         path.endY = path.endY + dy
         path.length += 1
 
@@ -486,6 +491,24 @@ def downRightPath(path,dr):
                 return
 
             counter = counter + step
+            tmpDr = 2
+            if dr==2:
+                tmpDr = 2
+            elif dr == 3:
+                tmpDr = 6
+
+            for tx,ty in tmpIndex:
+                tmpPolyGraph = polyGraph[tx,ty]
+                if tmpPolyGraph == None :
+                    tmpPolyGraph = {}
+                    polyGraph[tx,ty]=tmpPolyGraph
+                    tmpPolyGraph[tmpDr] = imgset
+                    imgset.addPoint(tx,ty)
+                elif imgset.index != tmpPolyGraph[1].index:
+                    imgset.replaceImgSet(tmpPolyGraph[1],polyGraph,1)
+                else:
+                    imgset.addPoint(tx,ty)
+
             for tx,ty in tmpIndex:
                 tmpPolyGraph = polyGraph[tx,ty]
                 if tmpPolyGraph == None :
@@ -496,6 +519,8 @@ def downRightPath(path,dr):
     __hpath(-1,-1)
     __hpath(1,1)
     return
+
+
 
 def upRightPath(path,dr):
     pathMean = -1
