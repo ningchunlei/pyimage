@@ -187,7 +187,7 @@ indexCounter = 0
 indexPath = {}
 indexPathMap = {}
 
-def fillGraph(x,y,dx,dy,flag_op,dx_op=0,dy_op=0):
+def fillGraph(x,y,dx,dy,flag_op,dx_op=0,dy_op=0,index=0):
     point = graph[x][y]
     if point == None :
         path = ImgPath(x,y,index)
@@ -231,9 +231,9 @@ for x in range(startX,endX):
         dx,dy = dmap[index]
         dx_op,dy_op = dmap[-index]
         if td[x+dx][y+dy] == index or td[x+dx][y+dy] == -index:
-            fillGraph(x,y,dx,dy,False)
+            fillGraph(x,y,dx,dy,False,index=index)
         if td[x+dx_op][y+dy_op] == index or td[x+dx_op][y+dy_op] == -index:
-            fillGraph(x,y,dx,dy,True,dx_op,dy_op)
+            fillGraph(x,y,dx,dy,True,dx_op,dy_op,index=index)
 
 
 print "fillGraph"
@@ -299,15 +299,15 @@ def horizontalPath(path):
             def __fillSet(tmpIndex,imgset):
                 for tx,ty in tmpIndex:
                     tmpPolyGraph = polyGraph[tx,ty]
-                if tmpPolyGraph == None :
-                    tmpPolyGraph = {}
-                    polyGraph[tx,ty]=tmpPolyGraph
-                    tmpPolyGraph[3] = imgset
-                    imgset.addPoint(tx,ty)
-                elif imgset.index != tmpPolyGraph[3].index:
-                    imgset.replaceImgSet(tmpPolyGraph[3],polyGraph,3)
-                else:
-                    imgset.addPoint(tx,ty)
+                    if tmpPolyGraph == None :
+                        tmpPolyGraph = {}
+                        polyGraph[tx,ty]=tmpPolyGraph
+                        tmpPolyGraph[3] = imgset
+                    elif tmpPolyGraph[3] != None and imgset!=tmpPolyGraph[3] :
+                        imgset.addPoint(tx,ty)
+                        imgset.replaceImgSet(tmpPolyGraph[3],polyGraph,3)
+                    else:
+                        imgset.addPoint(tx,ty)
 
             for j in xrange(path.length):
                 t_x = path.startX+counter
@@ -333,7 +333,7 @@ def horizontalPath(path):
                 return
             counter = counter + step
             __fillSet(tmpIndex,imgset)
-            path.width += abs(counter)
+            path.width += abs(step)
 
     __hpath(0,-1,imgset)
     __hpath(0,1,imgset)
@@ -408,16 +408,16 @@ def verticalPath(path):
             counter = counter + step
             for tx,ty in tmpIndex:
                 tmpPolyGraph = polyGraph[tx,ty]
-            if tmpPolyGraph == None :
-                tmpPolyGraph = {}
-                polyGraph[tx,ty]=tmpPolyGraph
-                tmpPolyGraph[1] = imgset
-                imgset.addPoint(tx,ty)
-            elif imgset.index != tmpPolyGraph[1].index:
-                imgset.replaceImgSet(tmpPolyGraph[1],polyGraph,1)
-            else:
-                imgset.addPoint(tx,ty)
-            path.width += abs(counter)
+                if tmpPolyGraph == None :
+                    tmpPolyGraph = {}
+                    polyGraph[tx,ty]=tmpPolyGraph
+                    tmpPolyGraph[1] = imgset
+                    imgset.addPoint(tx,ty)
+                elif imgset != tmpPolyGraph[1]:
+                    imgset.replaceImgSet(tmpPolyGraph[1],polyGraph,1)
+                else:
+                    imgset.addPoint(tx,ty)
+            path.width += abs(step)
 
     vp(0,-1,imgset)
     vp(0,1,imgset)
@@ -434,6 +434,26 @@ def downRightPath(path,dr):
         path.endX = path.endX + dx
         path.endY = path.endY + dy
         path.length += 1
+
+    tmpDr = 2
+    if dr==4:
+        tmpDr = 2
+    elif dr == 3:
+        tmpDr = 6
+
+    imgset = None
+    for j in xrange(path.length):
+        t_y = path.startY
+        t_x = path.startX+j
+
+        if polyGraph[t_x][t_y] != None and polyGraph[t_x][t_y].get(tmpDr)!=None:
+            if imgset == None :
+                imgset = polyGraph[t_x][t_y].get(tmpDr)
+            elif imgset != polyGraph[t_x][t_y].get(tmpDr):
+                imgset.replaceImgSet(polyGraph[t_x][t_y].get(tmpDr),polyGraph,tmpDr)
+
+    if imgset == None :
+        imgset = getNewImgSet(tmpDr)
 
     def __axis(path,counter,j):
         t_y=0;t_x=0
@@ -452,7 +472,7 @@ def downRightPath(path,dr):
         if t_y > extendImg.shape[1]-1 : t_y = 0
         return t_x,t_y
 
-    def __hpath(counter,step):
+    def __hpath(counter,step,imgset):
         pathMean = -1
         while True:
             weight = 0
@@ -466,6 +486,8 @@ def downRightPath(path,dr):
                     break
                 pt = graph[t_x][t_y]
                 if pt != None and pt.path.direction!=path.direction:
+                    if dr == 3 and abs(pt.path.direction)==3:
+                        continue;
                     if pt.path.length>4:
                         weight = path.length << 2
                     else :
@@ -492,7 +514,7 @@ def downRightPath(path,dr):
 
             counter = counter + step
             tmpDr = 2
-            if dr==2:
+            if dr==4:
                 tmpDr = 2
             elif dr == 3:
                 tmpDr = 6
@@ -504,20 +526,14 @@ def downRightPath(path,dr):
                     polyGraph[tx,ty]=tmpPolyGraph
                     tmpPolyGraph[tmpDr] = imgset
                     imgset.addPoint(tx,ty)
-                elif imgset.index != tmpPolyGraph[1].index:
-                    imgset.replaceImgSet(tmpPolyGraph[1],polyGraph,1)
+                elif imgset.index != tmpPolyGraph[tmpDr].index:
+                    imgset.replaceImgSet(tmpPolyGraph[tmpDr],polyGraph,tmpDr)
                 else:
                     imgset.addPoint(tx,ty)
 
-            for tx,ty in tmpIndex:
-                tmpPolyGraph = polyGraph[tx,ty]
-                if tmpPolyGraph == None :
-                    tmpPolyGraph = set()
-                    polyGraph[tx,ty]=tmpPolyGraph
-                tmpPolyGraph.add((2,indexCounter))
             path.width += abs(counter)
-    __hpath(-1,-1)
-    __hpath(1,1)
+    __hpath(-1,-1,imgset)
+    __hpath(1,1,imgset)
     return
 
 
@@ -532,6 +548,26 @@ def upRightPath(path,dr):
         path.startX = path.startX+dx
         path.startY = path.startY + dy
         path.length += 1
+
+    tmpDr = 4
+    if dr== 2:
+        tmpDr = 4
+    elif dr == 3:
+        tmpDr = 8
+
+    imgset = None
+    for j in xrange(path.length):
+        t_y = path.startY
+        t_x = path.startX+j
+
+        if polyGraph[t_x][t_y] != None and polyGraph[t_x][t_y].get(tmpDr)!=None:
+            if imgset == None :
+                imgset = polyGraph[t_x][t_y].get(tmpDr)
+            elif imgset != polyGraph[t_x][t_y].get(tmpDr):
+                imgset.replaceImgSet(polyGraph[t_x][t_y].get(tmpDr),polyGraph,tmpDr)
+
+    if imgset == None :
+        imgset = getNewImgSet(tmpDr)
 
     def __axis(path,counter,j):
         t_y=0;t_x=0
@@ -550,7 +586,7 @@ def upRightPath(path,dr):
         if t_y > extendImg.shape[1] : t_y = 0
         return t_x,t_y
 
-    def __hpath(counter,step):
+    def __hpath(counter,step,imgset):
         pathMean = -1
         while True:
             weight = 0
@@ -564,6 +600,9 @@ def upRightPath(path,dr):
                     break
                 pt = graph[t_x][t_y]
                 if pt != None and pt.path.direction!=path.direction:
+
+                    if dr == 3 and abs(pt.path.direction)==3:
+                        continue;
                     if pt.path.length>4:
                         weight = path.length << 2
                     else :
@@ -587,18 +626,61 @@ def upRightPath(path,dr):
             if abs(counter)>path.length:
                 return
             counter = counter + step
+
+            tmpDr = 4
+            if dr==2:
+                tmpDr = 4
+            elif dr == 3:
+                tmpDr = 8
+
             for tx,ty in tmpIndex:
                 tmpPolyGraph = polyGraph[tx,ty]
                 if tmpPolyGraph == None :
-                    tmpPolyGraph = set()
+                    tmpPolyGraph = {}
                     polyGraph[tx,ty]=tmpPolyGraph
-                tmpPolyGraph.add((4,indexCounter))
+                    tmpPolyGraph[tmpDr] = imgset
+                    imgset.addPoint(tx,ty)
+                elif imgset.index != tmpPolyGraph[tmpDr].index:
+                    imgset.replaceImgSet(tmpPolyGraph[tmpDr],polyGraph,tmpDr)
+                else:
+                    imgset.addPoint(tx,ty)
+
             path.width += abs(counter)
-    __hpath(-1,-1)
-    __hpath(1,1)
+    __hpath(-1,-1,imgset)
+    __hpath(1,1,imgset)
     return
 
 
+def removeSmallPath(path,dr):
+    t_x=path.startX;t_y=path.startY
+    if dr == 2:
+        if polyGraph[t_x][t_y]!=None:
+            imgset2 = polyGraph[t_x][t_y][2]
+            c_2=0;
+            c_6=0
+            if imgset2 != None :
+                c_2 = len(imgset2.points)
+            imgset6 = polyGraph[t_x][t_y][6]
+            if imgset6 != None :
+                c_6 = len(imgset6.points)
+            if c_2 > c_6 :
+                imgset2.remove(polyGraph,2)
+            elif c_6> c_2:
+                imgset6.remove(polyGraph,6)
+    elif dr==4:
+        if polyGraph[t_x][t_y]!=None:
+            imgset4 = polyGraph[t_x][t_y][4]
+            c_4=0;
+            c_8=0
+            if imgset4 != None :
+                c_4 = len(imgset4.points)
+            imgset8 = polyGraph[t_x][t_y][8]
+            if imgset8 != None :
+                c_8 = len(imgset8.points)
+            if c_4 > c_8 :
+                imgset4.remove(polyGraph,4)
+            elif c_8> c_4:
+                imgset6.remove(polyGraph,8)
 
 for x in range(startX,endX):
     for y in range(startY,endY):
@@ -614,19 +696,38 @@ for x in range(startX,endX):
             verticalPath(path)
         elif path.direction == 2:
             #downRightPath(path,1)
-            #downRightPath(path,3)
+            downRightPath(path,3)
             downRightPath(path,4)
+            removeSmallPath(path,2)
         elif path.direction == 4 :
             #upRightPath(path,1)
-            #upRightPath(path,3)
+            upRightPath(path,3)
             upRightPath(path,2)
+            removeSmallPath(path,4)
+
+
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        tmp = polyGraph[x][y]
+        if tmp==None:
+            continue
+        for k in tmp:
+            imgset = tmp[k]
+            imgset.build(polyGraph)
 
 
 
 keepGraph = numpy.ndarray(fillImg.shape,"uint8")
 keepGraph.fill(0)
 
+for x in range(startX,endX):
+    for y in range(startY,endY):
+        tmp = polyGraph[x][y]
+        for k in tmp:
 
+
+
+"""
 def findSameDirection(x,y,dr,flag=False):
     if flag == False:
         nx = 0;ny=0
@@ -734,7 +835,7 @@ for x in range(startX,endX):
                         polyGraph[d_x][d_y] = s
                         indexCounter += 1
 
-
+"""
 """
 def findZeroPoint(x,y):
     for index in dmap:
@@ -760,7 +861,7 @@ for x in range(startX,endX):
             findZeroPoint(x,y)
 
 """
-
+"""
 for x in range(startX,endX):
     for y in range(startY,endY):
         if polyGraph[x][y] == None:
@@ -837,7 +938,7 @@ for x in range(startX,endX):
 
 
 
-
+"""
 
 
 """

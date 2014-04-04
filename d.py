@@ -5,6 +5,11 @@ __author__ = 'Administrator'
 import cv2
 import numpy
 
-a =set()
+
+def a(a,b=1,c=2):
+    print c
+
+
+a(0,c=3)
 
 
